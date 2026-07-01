@@ -10,7 +10,6 @@ function exportCSV() {
                 day.date,
                 p.periodNumber,
                 p.classSection || '',
-                p.subjectTopics || '',
                 p.classwork || '',
                 p.homework || '',
                 p.photoUrl || ''
@@ -21,7 +20,7 @@ function exportCSV() {
         showToast('No data to export.', 'warning');
         return;
     }
-    const header = ['date', 'period_number', 'class_section', 'subject_topics', 'classwork', 'homework', 'photo_url'];
+    const header = ['date', 'period_number', 'class_section', 'classwork', 'homework', 'photo_url'];
     const csvContent = [header.join(','), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))]
         .join('\n');
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -47,7 +46,6 @@ function importCSV(file) {
             const dateIdx = header.indexOf('date');
             const periodIdx = header.indexOf('period_number');
             const classIdx = header.indexOf('class_section');
-            const subjectIdx = header.indexOf('subject_topics');
             const workIdx = header.indexOf('classwork');
             const homeIdx = header.indexOf('homework');
             const photoIdx = header.indexOf('photo_url');
@@ -66,7 +64,7 @@ function importCSV(file) {
                 grouped[date].push({
                     periodNumber: period,
                     classSection: classIdx >= 0 ? (cols[classIdx]?.trim() || '') : '',
-                    subjectTopics: subjectIdx >= 0 ? (cols[subjectIdx]?.trim() || '') : '',
+                    subjectTopics: '',
                     classwork: workIdx >= 0 ? (cols[workIdx]?.trim() || '') : '',
                     homework: homeIdx >= 0 ? (cols[homeIdx]?.trim() || '') : '',
                     photoUrl: photoIdx >= 0 ? (cols[photoIdx]?.trim() || '') : ''

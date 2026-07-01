@@ -563,7 +563,7 @@ textarea {
 
 .day-card .period-item {
     display: grid;
-    grid-template-columns: 60px 0.8fr 1fr 1.2fr 1.2fr 60px 0.8fr;
+    grid-template-columns: 60px 1fr 1.5fr 1.5fr 80px;
     gap: 10px;
     padding: 6px 0;
     font-size: 14px;
@@ -754,10 +754,7 @@ textarea {
         padding-left: 40px;
     }
 
-    .day-card .period-item .p-subject {
-        grid-column: 1 / -1;
-        padding-left: 40px;
-    }
+
 
     .day-card .period-item .p-sub {
         grid-column: 1 / -1;
@@ -1191,6 +1188,70 @@ textarea {
     text-decoration: underline;
 }
 
+/* ---------- GOOGLE OAUTH BUTTON ---------- */
+.auth-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #475569;
+    font-size: 13px;
+    margin: 18px 0;
+}
+.auth-divider::before,
+.auth-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.auth-divider:not(:empty)::before {
+    margin-right: .5em;
+}
+.auth-divider:not(:empty)::after {
+    margin-left: .5em;
+}
+.auth-divider span {
+    color: #64748b;
+    font-weight: 500;
+}
+
+.auth-btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1.5px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: #ffffff;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    outline: none;
+}
+.auth-btn-google:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.09);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+.auth-btn-google:focus-visible {
+    border-color: #818cf8;
+    box-shadow: 0 0 0 4px rgba(129, 140, 248, 0.15);
+}
+.auth-btn-google:active:not(:disabled) {
+    transform: translateY(0);
+    background: rgba(255, 255, 255, 0.03);
+}
+.auth-btn-google:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+.google-icon {
+    flex-shrink: 0;
+}
+
 /* ---------- USER HEADER BANNER ---------- */
 .header-user-banner {
     display: flex;
@@ -1201,6 +1262,14 @@ textarea {
     border-radius: 40px;
     backdrop-filter: blur(4px);
     font-size: 14px;
+}
+.header-user-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    flex-shrink: 0;
 }
 .header-user-email {
     font-weight: 500;

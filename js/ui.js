@@ -44,7 +44,6 @@ function renderDailyTab() {
         tr.innerHTML = `
           <td class="period-num">${i}</td>
           <td><input type="text" class="daily-class" data-period="${i}" value="${escHtml(existing.classSection || '')}" placeholder="e.g. 10-A" /></td>
-          <td><input type="text" class="daily-subject" data-period="${i}" value="${escHtml(existing.subjectTopics || '')}" placeholder="e.g. Maths #Ch1" /></td>
           <td><input type="text" class="daily-work" data-period="${i}" value="${escHtml(existing.classwork || '')}" placeholder="What was taught?" /></td>
           <td><input type="text" class="daily-home" data-period="${i}" value="${escHtml(existing.homework || '')}" placeholder="Homework assigned?" /></td>
           <td>${photoHtml}</td>
@@ -150,7 +149,6 @@ async function saveDaily() {
         for (const tr of rows) {
             const periodNum = parseInt(tr.querySelector('.period-num')?.textContent || '0');
             const classVal = tr.querySelector('.daily-class')?.value?.trim() || '';
-            const subjectVal = tr.querySelector('.daily-subject')?.value?.trim() || '';
             const workVal = tr.querySelector('.daily-work')?.value?.trim() || '';
             const homeVal = tr.querySelector('.daily-home')?.value?.trim() || '';
             let photoVal = tr.querySelector('.daily-photo-url')?.value || '';
@@ -188,13 +186,13 @@ async function saveDaily() {
             periods.push({
                 periodNumber: periodNum,
                 classSection: classVal,
-                subjectTopics: subjectVal,
+                subjectTopics: '',
                 classwork: workVal,
                 homework: homeVal,
                 photoUrl: photoVal
             });
 
-            if (classVal || subjectVal || workVal || homeVal || photoVal) hasData = true;
+            if (classVal || workVal || homeVal || photoVal) hasData = true;
         }
 
         if (!hasData) {
@@ -238,7 +236,6 @@ function copyPreviousDay() {
         const prevPeriod = prevEntry.periods.find(p => p.periodNumber === periodNum);
         if (prevPeriod) {
             tr.querySelector('.daily-class').value = prevPeriod.classSection || '';
-            tr.querySelector('.daily-subject').value = prevPeriod.subjectTopics || '';
             tr.querySelector('.daily-work').value = prevPeriod.classwork || '';
             tr.querySelector('.daily-home').value = prevPeriod.homework || '';
             
@@ -274,7 +271,6 @@ function resetDaily() {
     const tbody = document.getElementById('periodTableBody');
     tbody.querySelectorAll('tr').forEach(tr => {
         tr.querySelector('.daily-class').value = '';
-        tr.querySelector('.daily-subject').value = '';
         tr.querySelector('.daily-work').value = '';
         tr.querySelector('.daily-home').value = '';
         const periodNum = parseInt(tr.querySelector('.period-num')?.textContent || '0');
@@ -300,7 +296,6 @@ function renderViewTab() {
         filtered = filtered.filter(day => {
             const match = day.periods.some(p =>
                 (p.classSection || '').toLowerCase().includes(search) ||
-                (p.subjectTopics || '').toLowerCase().includes(search) ||
                 (p.classwork || '').toLowerCase().includes(search) ||
                 (p.homework || '').toLowerCase().includes(search)
             );
@@ -331,7 +326,7 @@ function renderViewTab() {
     let html = '';
     for (const day of filtered) {
         const dateDisplay = formatDate(day.date);
-        const periodCount = day.periods.filter(p => p.classSection || p.subjectTopics || p.classwork || p.homework || p.photoUrl).length;
+        const periodCount = day.periods.filter(p => p.classSection || p.classwork || p.homework || p.photoUrl).length;
         const total = day.periods.length;
         html += `
           <div class="day-card" data-date="${day.date}">
@@ -347,7 +342,6 @@ function renderViewTab() {
                 <div class="period-item">
                   <span class="p-label">P${p.periodNumber}</span>
                   <span class="p-class" title="Class & Section">${escHtml(p.classSection) || '—'}</span>
-                  <span class="p-subject" title="Subject & Topics">📚 ${escHtml(p.subjectTopics) || '—'}</span>
                   <span class="p-work" title="Classwork">📖 ${escHtml(p.classwork) || '—'}</span>
                   <span class="p-home" title="Homework">📝 ${escHtml(p.homework) || '—'}</span>
                   <span class="p-photo" title="Photo">
@@ -625,7 +619,6 @@ CREATE TABLE daily_activities (
   date DATE NOT NULL,
   period_number INTEGER NOT NULL,
   class_section TEXT DEFAULT '',
-  subject_topics TEXT DEFAULT '',
   classwork TEXT DEFAULT '',
   homework TEXT DEFAULT '',
   photo_url TEXT DEFAULT '',

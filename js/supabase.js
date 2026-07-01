@@ -54,11 +54,6 @@ async function pushToSupabase() {
         console.warn('Could not get Supabase session:', e.message);
     }
 
-    if (!userId) {
-        const localSession = getLocalSession();
-        userId = localSession?.user?.id;
-    }
-
     if (!userId) return { ok: false, error: 'No active session. Please sign in first via the login page.' };
 
     const table = getSettings().supabaseTable || 'daily_activities';

@@ -22,6 +22,13 @@ function loadData() {
         const parsed = JSON.parse(raw);
         if (!parsed.settings) parsed.settings = getDefaultData().settings;
         if (!parsed.activities) parsed.activities = [];
+        
+        // Auto-correct common typo in default Supabase URL (missing trailing 'z')
+        if (parsed.settings && parsed.settings.supabaseUrl === 'https://syjhiqlfjieihhpymwd.supabase.co') {
+            parsed.settings.supabaseUrl = 'https://syjhiqlfjieihhpymwdz.supabase.co';
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+        }
+        
         return parsed;
     } catch {
         return getDefaultData();
@@ -40,6 +47,12 @@ function getSettings() {
 function saveSettings(settings) {
     const data = loadData();
     data.settings = settings;
+    
+    // Auto-correct on save as well
+    if (data.settings && data.settings.supabaseUrl === 'https://syjhiqlfjieihhpymwd.supabase.co') {
+        data.settings.supabaseUrl = 'https://syjhiqlfjieihhpymwdz.supabase.co';
+    }
+    
     saveData(data);
 }
 

@@ -1,127 +1,6 @@
 // ================================================================
-//  LOCAL AUTH SERVICE (works without Supabase)
+//  AUTH SERVICE (Supabase only - no local storage)
 // ================================================================
-const LOCAL_AUTH_KEY = 'teacherPlanner_localUsers';
-const LOCAL_SESSION_KEY = 'teacherPlanner_localSession';
-
-async function hashPassword(password) {
-    const salted = password + '_teacher_planner_salt_2024';
-    if (window.crypto && window.crypto.subtle) {
-        const encoder = new TextEncoder();
-        const data = encoder.encode(salted);
-        try {
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        } catch (e) {
-            console.warn('crypto.subtle.digest failed, using fallback hash:', e);
-        }
-    }
-    // Fallback: simple deterministic 128-bit hash for offline local usage
-    let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x30393039, h4 = 0x21212121;
-    for (let i = 0; i < salted.length; i++) {
-        const ch = salted.charCodeAt(i);
-        h1 = Math.imul(h1 ^ ch, 2654435761);
-        h2 = Math.imul(h2 ^ ch, 1597334677);
-        h3 = Math.imul(h3 ^ ch, 3432918353);
-        h4 = Math.imul(h4 ^ ch, 1171053229);
-    }
-    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-    h1 ^= h1 >>> 13;
-    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-    h2 ^= h2 >>> 13;
-    h3 = Math.imul(h3 ^ (h3 >>> 16), 2246822507);
-    h3 ^= h3 >>> 13;
-    h4 = Math.imul(h4 ^ (h4 >>> 16), 2246822507);
-    h4 ^= h4 >>> 13;
-    
-    const toHex = (num) => (num >>> 0).toString(16).padStart(8, '0');
-    return toHex(h1) + toHex(h2) + toHex(h3) + toHex(h4);
-}
-
-function getLocalUsers() {
-    try {
-        return JSON.parse(localStorage.getItem(LOCAL_AUTH_KEY) || '{}');
-    } catch { return {}; }
-}
-
-function saveLocalUsers(users) {
-    localStorage.setItem(LOCAL_AUTH_KEY, JSON.stringify(users));
-}
-
-function getLocalSession() {
-    try {
-        return JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || 'null');
-    } catch { return null; }
-}
-
-function setLocalSession(session) {
-    if (session) {
-        localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(session));
-    } else {
-        localStorage.removeItem(LOCAL_SESSION_KEY);
-    }
-}
-
-async function localRegister(email, password, name, subject) {
-    const users = getLocalUsers();
-    if (users[email]) {
-        return { error: 'An account with this email already exists. Please sign in instead.' };
-    }
-    if (password.length < 6) {
-        return { error: 'Password must be at least 6 characters.' };
-    }
-    const hashedPw = await hashPassword(password);
-    users[email] = {
-        email,
-        password: hashedPw,
-        full_name: name || '',
-        subject: subject || '',
-        created_at: new Date().toISOString(),
-        id: 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8)
-    };
-    saveLocalUsers(users);
-    const session = {
-        user: {
-            id: users[email].id,
-            email: email,
-            user_metadata: {
-                full_name: name || '',
-                subject: subject || ''
-            }
-        }
-    };
-    setLocalSession(session);
-    return { data: { session }, error: null };
-}
-
-async function localLogin(email, password) {
-    const users = getLocalUsers();
-    const user = users[email];
-    if (!user) {
-        return { error: 'No account found with this email. Please register first.' };
-    }
-    const hashedPw = await hashPassword(password);
-    if (user.password !== hashedPw) {
-        return { error: 'Incorrect password. Please try again.' };
-    }
-    const session = {
-        user: {
-            id: user.id,
-            email: email,
-            user_metadata: {
-                full_name: user.full_name || '',
-                subject: user.subject || ''
-            }
-        }
-    };
-    setLocalSession(session);
-    return { data: { session }, error: null };
-}
-
-function localSignOut() {
-    setLocalSession(null);
-}
 
 function isSupabaseConfigValid() {
     const settings = getSettings();
@@ -136,6 +15,7 @@ function isSupabaseConfigValid() {
 let isBypassedAuth = false;
 let currentAuthTab = 'login';
 let authListenerBound = false;
+let currentBoundClientConfig = '';
 
 function switchAuthTab(tab) {
     currentAuthTab = tab;
@@ -177,109 +57,46 @@ async function handleAuthSubmit(event) {
     submitBtn.innerHTML = '<span class="spinner"></span> Working...';
     
     try {
-        const useSupabase = isSupabaseConfigValid();
+        if (!isSupabaseConfigValid()) {
+            showToast('⚠️ Supabase is not configured. Please set up Supabase URL and Key in Settings.', 'error');
+            return;
+        }
+
+        const client = getSupabaseClient();
+        if (!client) {
+            showToast('⚠️ Could not connect to Supabase. Please check your settings.', 'error');
+            return;
+        }
         
         if (currentAuthTab === 'login') {
-            if (useSupabase) {
-                try {
-                    const client = getSupabaseClient();
-                    if (client) {
-                        const { error } = await client.auth.signInWithPassword({ email, password });
-                        if (error) throw error;
-                        showToast('Welcome back! Successfully signed in.', 'success');
-                        return;
-                    }
-                } catch (supaErr) {
-                    const isNetworkErr = supaErr.message && (
-                        supaErr.message.includes('fetch') || 
-                        supaErr.message.includes('network') || 
-                        supaErr.message.includes('Failed')
-                    );
-                    const isRateLimit = supaErr.message && (
-                        supaErr.message.includes('rate limit') || 
-                        supaErr.message.includes('exceeded')
-                    );
-                    
-                    if (isNetworkErr || isRateLimit) {
-                        console.warn('Supabase login rate-limited or unreachable, falling back to local auth:', supaErr.message);
-                        showToast(`⚠️ Supabase error: "${supaErr.message}". Logging you in locally instead.`, 'warning', 5000);
-                    } else {
-                        throw supaErr;
-                    }
-                }
-            }
-            const result = await localLogin(email, password);
-            if (result.error) {
-                showToast(result.error, 'error');
-                return;
-            }
-            handleAuthState(result.data.session);
+            const { data, error } = await client.auth.signInWithPassword({ email, password });
+            if (error) throw error;
+            handleAuthState(data.session);
             localStorage.setItem('lastLoggedInEmail', email);
-            showToast('Welcome back! Signed in locally.', 'success');
+            showToast('Welcome back! Successfully signed in.', 'success');
         } else {
             const name = document.getElementById('auth-name').value.trim();
             const subject = document.getElementById('auth-subject').value.trim();
             
-            if (useSupabase) {
-                try {
-                    const client = getSupabaseClient();
-                    if (client) {
-                        const signUpOptions = {
-                            email,
-                            password,
-                            options: {
-                                data: {
-                                    full_name: name || '',
-                                    subject: subject || ''
-                                }
-                            }
-                        };
-                        const { data, error } = await client.auth.signUp(signUpOptions);
-                        if (error) throw error;
-                        if (data.session) {
-                            showToast('Registration successful! Welcome.', 'success');
-                        } else {
-                            // Fallback to local session so they can use the app instantly without email verification
-                            const localResult = await localRegister(email, password, name, subject);
-                            if (localResult.error) {
-                                const localLoginResult = await localLogin(email, password);
-                                if (!localLoginResult.error) {
-                                    handleAuthState(localLoginResult.data.session);
-                                }
-                            } else {
-                                handleAuthState(localResult.data.session);
-                            }
-                            showToast('🎉 Registration successful! Welcome to Teacher Planner.', 'success');
-                        }
-                        return;
-                    }
-                } catch (supaErr) {
-                    const isNetworkErr = supaErr.message && (
-                        supaErr.message.includes('fetch') || 
-                        supaErr.message.includes('network') || 
-                        supaErr.message.includes('Failed')
-                    );
-                    const isRateLimit = supaErr.message && (
-                        supaErr.message.includes('rate limit') || 
-                        supaErr.message.includes('exceeded')
-                    );
-                    
-                    if (isNetworkErr || isRateLimit) {
-                        console.warn('Supabase signup rate-limited or unreachable, falling back to local auth:', supaErr.message);
-                        showToast(`⚠️ Supabase error: "${supaErr.message}". Registering you locally instead.`, 'warning', 5000);
-                    } else {
-                        throw supaErr;
+            const signUpOptions = {
+                email,
+                password,
+                options: {
+                    data: {
+                        full_name: name || '',
+                        subject: subject || ''
                     }
                 }
+            };
+            const { data, error } = await client.auth.signUp(signUpOptions);
+            if (error) throw error;
+            if (data.session) {
+                handleAuthState(data.session);
+                showToast('🎉 Registration successful! Welcome to Teacher Planner.', 'success');
+            } else {
+                showToast('📧 Verification email sent! Please check your inbox and verify your email before logging in.', 'info', 8000);
+                switchAuthTab('login');
             }
-            const result = await localRegister(email, password, name, subject);
-            if (result.error) {
-                showToast(result.error, 'error');
-                return;
-            }
-            handleAuthState(result.data.session);
-            localStorage.setItem('lastLoggedInEmail', email);
-            showToast('🎉 Registration successful! Welcome to Teacher Planner.', 'success');
         }
     } catch (err) {
         showToast(err.message || 'Authentication failed. Please try again.', 'error');
@@ -289,9 +106,49 @@ async function handleAuthSubmit(event) {
     }
 }
 
-async function handleSignOut() {
-    localSignOut();
+async function handleGoogleSignIn(event) {
+    if (event) event.preventDefault();
     
+    if (!isSupabaseConfigValid()) {
+        showToast('⚠️ Supabase is not configured. Please set up Supabase URL and Key in Settings.', 'error');
+        return;
+    }
+    
+    const googleBtn = document.getElementById('auth-google-btn');
+    const submitBtn = document.getElementById('auth-submit-btn');
+    
+    const originalText = googleBtn.innerHTML;
+    googleBtn.disabled = true;
+    if (submitBtn) submitBtn.disabled = true;
+    googleBtn.innerHTML = '<span class="spinner"></span> Connecting...';
+    
+    try {
+        const client = getSupabaseClient();
+        if (!client) {
+            showToast('⚠️ Could not connect to Supabase. Please check your settings.', 'error');
+            return;
+        }
+        
+        const { error } = await client.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin + window.location.pathname,
+                queryParams: {
+                    prompt: 'select_account'
+                }
+            }
+        });
+        
+        if (error) throw error;
+    } catch (err) {
+        showToast(err.message || 'Google Authentication failed. Please try again.', 'error');
+        googleBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
+        googleBtn.innerHTML = originalText;
+    }
+}
+
+async function handleSignOut() {
     const client = getSupabaseClient();
     if (client) {
         try {
@@ -312,25 +169,27 @@ function bypassAuthToLocal() {
     showToast('Using planner in Local Offline Mode. Data will not sync to Supabase.', 'info');
 }
 
-function setupAuthListener() {
-    const localSession = getLocalSession();
-    if (localSession && localSession.user) {
-        handleAuthState(localSession);
-        return;
-    }
-    
+async function setupAuthListener() {
     if (isSupabaseConfigValid()) {
         const client = getSupabaseClient();
         if (client) {
-            if (!authListenerBound) {
+            try {
+                const { data: { session } } = await client.auth.getSession();
+                if (session) {
+                    handleAuthState(session);
+                }
+            } catch (e) {
+                console.warn('Error fetching initial session:', e);
+            }
+
+            const settings = getSettings();
+            const configKey = (settings.supabaseUrl || '') + '|' + (settings.supabaseKey || '');
+            if (!authListenerBound || currentBoundClientConfig !== configKey) {
                 client.auth.onAuthStateChange((event, session) => {
                     handleAuthState(session);
                 });
                 authListenerBound = true;
-            } else {
-                client.auth.getSession().then(({ data: { session } }) => {
-                    handleAuthState(session);
-                });
+                currentBoundClientConfig = configKey;
             }
             return;
         }
@@ -366,15 +225,45 @@ function handleAuthState(session) {
             localStorage.removeItem('userSubject');
         }
         
+        // Render Google Profile Avatar if available
+        const avatarEl = document.getElementById('headerUserAvatar');
+        if (avatarEl) {
+            const avatarUrl = meta.avatar_url || meta.picture || '';
+            if (avatarUrl) {
+                avatarEl.src = avatarUrl;
+                avatarEl.style.display = 'block';
+            } else {
+                avatarEl.src = '';
+                avatarEl.style.display = 'none';
+            }
+        }
+        
         userEmail.textContent = displayName;
         userEmail.title = session.user.email;
         if (session.user.email) {
             localStorage.setItem('lastLoggedInEmail', session.user.email);
         }
+
+        // Clean up the URL hash fragment to prevent token leakage and keep URL clean
+        if (window.location.hash && (window.location.hash.includes('access_token=') || window.location.hash.includes('type=recovery'))) {
+            history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        }
+
+        // Auto-select 'daily' dashboard tab when signed in
+        const dailyTabButton = document.querySelector('[data-tab="daily"]');
+        if (dailyTabButton && !dailyTabButton.classList.contains('active')) {
+            dailyTabButton.click();
+        }
     } else {
         localStorage.removeItem('userSubject');
         userBanner.classList.add('hidden');
         userEmail.textContent = '';
+        
+        const avatarEl = document.getElementById('headerUserAvatar');
+        if (avatarEl) {
+            avatarEl.src = '';
+            avatarEl.style.display = 'none';
+        }
         
         const settings = getSettings();
         if (settings.supabaseUrl && settings.supabaseKey && !isBypassedAuth) {

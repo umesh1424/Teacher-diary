@@ -169,13 +169,13 @@ function handleTagAutocompleteKeydown(e, input) {
 
 // Global Event Listeners using Delegation
 document.addEventListener('input', function(e) {
-    if (e.target.classList.contains('daily-subject') || e.target.classList.contains('daily-work') || e.target.classList.contains('daily-home')) {
+    if (e.target.classList.contains('daily-work') || e.target.classList.contains('daily-home')) {
         handleTagAutocompleteInput(e.target);
     }
 });
 
 document.addEventListener('keydown', function(e) {
-    if (e.target.classList.contains('daily-subject') || e.target.classList.contains('daily-work') || e.target.classList.contains('daily-home')) {
+    if (e.target.classList.contains('daily-work') || e.target.classList.contains('daily-home')) {
         handleTagAutocompleteKeydown(e, e.target);
     }
 });
